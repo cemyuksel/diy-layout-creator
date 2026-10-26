@@ -115,7 +115,7 @@ public class HelpMenuPlugin implements IPlugIn {
     if (aboutDialog == null) {
       aboutDialog =
           DialogFactory.getInstance().createAboutDialog("DIY Layout Creator", IconLoader.IconLarge.getIcon(),
-              plugInPort.getCurrentVersionNumber().toString(), "Branislav Stojkovic",
+              plugInPort.getCurrentVersionNumber().toString() + "-cem", "Branislav Stojkovic",
               "github.com/bancika/diy-layout-creator", "bancika@gmail.com", LICENSE_TEXT);
       aboutDialog.setSize(aboutDialog.getSize().width + 30, aboutDialog.getSize().height + 200);
     }

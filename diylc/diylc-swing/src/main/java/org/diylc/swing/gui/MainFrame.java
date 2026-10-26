@@ -530,7 +530,7 @@ public class MainFrame extends JFrame implements ISwingUI {
           fileName = "Untitled";
         }
         String modified = (Boolean) params[1] ? " (modified)" : "";
-        setTitle(String.format("DIY Layout Creator v%s.%s.%s - %s %s", plugInPort.getCurrentVersionNumber().getMajor(), plugInPort.getCurrentVersionNumber().getMinor(),
+        setTitle(String.format("DIY Layout Creator v%s.%s.%s-cem - %s %s", plugInPort.getCurrentVersionNumber().getMajor(), plugInPort.getCurrentVersionNumber().getMinor(),
             plugInPort.getCurrentVersionNumber().getBuild(), fileName, modified));
       }
     }
