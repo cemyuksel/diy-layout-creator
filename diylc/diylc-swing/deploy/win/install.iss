@@ -21,8 +21,8 @@ AlwaysShowDirOnReadyPage=yes
 UsePreviousAppDir=yes
 ; Only allow the installer to run on x64-compatible systems,
 ; and enable 64-bit install mode.
-ArchitecturesAllowed=x64compatible
-ArchitecturesInstallIn64BitMode=x64compatible
+ArchitecturesAllowed=x64
+ArchitecturesInstallIn64BitMode=x64
 
 [Files]
 Source: "diylc-x64.exe"; DestDir: "{app}"; DestName: "diylc.exe"
