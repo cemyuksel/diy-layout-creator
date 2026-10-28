@@ -3198,6 +3198,15 @@ public class Presenter implements IPlugInPort {
   }
 
   @Override
+  public List<Netlist> extractNetlists(boolean includeSwitches,
+      Set<String> gangedSwitchNames) throws NetlistException {
+    List<ContinuityArea> continuityAreas = drawingManager.getContinuityAreas();
+
+    return NetlistBuilder.extractNetlists(includeSwitches, gangedSwitchNames,
+        currentProject, continuityAreas);
+  }
+
+  @Override
   public List<INetlistAnalyzer> getNetlistAnalyzers() {
     try {
       List<INetlistAnalyzer> result = ReflectionUtils.getIndexedInstances(INetlistAnalyzer.class);

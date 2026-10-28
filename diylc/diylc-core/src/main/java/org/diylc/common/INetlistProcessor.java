@@ -22,6 +22,7 @@
 package org.diylc.common;
 
 import java.util.List;
+import java.util.Set;
 
 import org.diylc.netlist.INetlistParser;
 import org.diylc.netlist.Netlist;
@@ -42,7 +43,17 @@ public interface INetlistProcessor {
    * @throws NetlistException 
    */
   List<Netlist> extractNetlists(boolean includeSwitches) throws NetlistException;
-  
+
+  /**
+   * Extracts netlists, synchronizing switches with the specified names.
+   */
+  default List<Netlist> extractNetlists(boolean includeSwitches,
+      Set<String> gangedSwitchNames) throws NetlistException {
+    if (!gangedSwitchNames.isEmpty())
+      throw new NetlistException("Switch ganging is not supported by this netlist processor.");
+    return extractNetlists(includeSwitches);
+  }
+
   /**
    * Finds all available {@link INetlistAnalyzer} implementations.
    * 

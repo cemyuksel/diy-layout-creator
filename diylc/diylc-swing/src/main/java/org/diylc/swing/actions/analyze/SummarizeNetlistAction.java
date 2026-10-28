@@ -24,16 +24,23 @@ package org.diylc.swing.actions.analyze;
 import java.awt.Dimension;
 import java.awt.event.ActionEvent;
 import java.util.List;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.Map;
+import java.util.Set;
 import javax.swing.AbstractAction;
 
 import org.diylc.swingframework.TextDialog;
 
+import org.diylc.core.ISwitch;
 import org.diylc.common.INetlistAnalyzer;
 import org.diylc.common.IPlugInPort;
 import org.diylc.common.ITask;
 import org.diylc.netlist.Netlist;
 import org.diylc.netlist.Summary;
 import org.diylc.netlist.NetlistSummaryHtmlReport;
+import org.diylc.netlist.IGuitarDiagramAnalyzer;
 import org.diylc.swing.ISwingUI;
 import org.diylc.utils.IconLoader;
 
@@ -68,9 +75,31 @@ public class SummarizeNetlistAction extends AbstractAction {
 
     swingUI.executeBackgroundTask(new ITask<List<Summary>>() {
 
+      private final Map<String, List<Integer>> switchPositionCounts = new LinkedHashMap<>();
+
       @Override
       public List<Summary> doInBackground() throws Exception {
-        List<Netlist> netlists = plugInPort.extractNetlists(includeSwitches);
+        Set<String> gangedSwitchNames = new LinkedHashSet<>();
+        if (includeSwitches && summarizer instanceof IGuitarDiagramAnalyzer) {
+          for (var component : plugInPort.getCurrentProject().getComponents()) {
+            if (component instanceof ISwitch theSwitch) {
+              String name = component.getName();
+              if (name != null && !name.isBlank())
+                switchPositionCounts.computeIfAbsent(name, key -> new ArrayList<>())
+                    .add(theSwitch.getPositionCount());
+            }
+          }
+
+          switchPositionCounts.entrySet().removeIf(entry -> entry.getValue().size() < 2);
+          for (var entry : switchPositionCounts.entrySet()) {
+            if (entry.getValue().stream().distinct().count() == 1)
+              gangedSwitchNames.add(entry.getKey());
+          }
+        }
+
+        List<Netlist> netlists = gangedSwitchNames.isEmpty()
+            ? plugInPort.extractNetlists(includeSwitches)
+            : plugInPort.extractNetlists(includeSwitches, gangedSwitchNames);
         if (netlists == null || netlists.isEmpty()) {
           throw new Exception("The generated netlist is empty, nothing to show.");
         }
@@ -91,7 +120,7 @@ public class SummarizeNetlistAction extends AbstractAction {
           return;
         }
         
-        String html = NetlistSummaryHtmlReport.generateHtml(res, summarizer.getFontName());
+        String html = NetlistSummaryHtmlReport.generateHtml(res, summarizer.getFontName(), switchPositionCounts);
         new TextDialog(swingUI.getOwnerFrame().getRootPane(), html, summarizer.getName(),
             new Dimension(800, 600)).setVisible(true);
       }

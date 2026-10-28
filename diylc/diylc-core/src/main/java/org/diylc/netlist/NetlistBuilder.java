@@ -56,6 +56,13 @@ public class NetlistBuilder {
   @SuppressWarnings("unchecked")
   public static List<Netlist> extractNetlists(boolean includeSwitches, Project project,
       List<ContinuityArea> continuityAreas) throws NetlistException {
+    return extractNetlists(includeSwitches, Collections.emptySet(), project, continuityAreas);
+  }
+
+  @SuppressWarnings("unchecked")
+  public static List<Netlist> extractNetlists(boolean includeSwitches,
+      Set<String> gangedSwitchNames, Project project,
+      List<ContinuityArea> continuityAreas) throws NetlistException {
     Map<Netlist, Netlist> result = new HashMap<Netlist, Netlist>();
     List<Node> nodes = new ArrayList<Node>();
 
@@ -104,6 +111,26 @@ public class NetlistBuilder {
     if (switches.isEmpty())
       switches.add(new TrivialSwitch());
 
+    Map<String, List<ISwitch>> namedSwitches = new LinkedHashMap<>();
+    for (ISwitch theSwitch : switches) {
+      if (!(theSwitch instanceof IDIYComponent<?>))
+        continue;
+      String name = ((IDIYComponent<?>) theSwitch).getName();
+      if (name != null && !name.isBlank() && gangedSwitchNames.contains(name))
+        namedSwitches.computeIfAbsent(name, key -> new ArrayList<>()).add(theSwitch);
+    }
+
+    Map<ISwitch, ISwitch> gangLeaders = new LinkedHashMap<>();
+    for (List<ISwitch> gang : namedSwitches.values()) {
+      ISwitch leader = gang.get(0);
+      if (gang.size() > 1 && gang.stream()
+          .allMatch(member -> member.getPositionCount() == leader.getPositionCount())) {
+        for (int j = 1; j < gang.size(); j++)
+          gangLeaders.put(gang.get(j), leader);
+      }
+    }
+    switches.removeAll(gangLeaders.keySet());
+
     // construct all possible combinations
     int[] positions = new int[switches.size()];
     for (int i = 0; i < switches.size(); i++)
@@ -137,6 +164,8 @@ public class NetlistBuilder {
         switchPositions.put(switches.get(j), positions[j]);
         posList.add(new Position(switches.get(j), positions[j]));
       }
+      gangLeaders.forEach((member, leader) ->
+          switchPositions.put(member, switchPositions.get(leader)));
       List<Connection> connections = getConnections(project, switchPositions);
 
       Netlist netlist =
