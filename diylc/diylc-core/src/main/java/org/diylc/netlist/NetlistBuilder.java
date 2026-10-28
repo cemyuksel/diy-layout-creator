@@ -53,15 +53,27 @@ public class NetlistBuilder {
   
   private static final Logger LOG = Logger.getLogger(NetlistBuilder.class);
 
-  @SuppressWarnings("unchecked")
   public static List<Netlist> extractNetlists(boolean includeSwitches, Project project,
       List<ContinuityArea> continuityAreas) throws NetlistException {
-    return extractNetlists(includeSwitches, false, project, continuityAreas);
+    return extractNetlists(includeSwitches, false, Collections.emptySet(), project, continuityAreas);
+  }
+
+  public static List<Netlist> extractNetlists(boolean includeSwitches,
+      boolean respectSelectedPositions, Project project,
+      List<ContinuityArea> continuityAreas) throws NetlistException {
+    return extractNetlists(includeSwitches, respectSelectedPositions,
+        Collections.emptySet(), project, continuityAreas);
+  }
+
+  public static List<Netlist> extractNetlists(boolean includeSwitches,
+      Set<String> gangedSwitchNames, Project project,
+      List<ContinuityArea> continuityAreas) throws NetlistException {
+    return extractNetlists(includeSwitches, false, gangedSwitchNames, project, continuityAreas);
   }
 
   @SuppressWarnings("unchecked")
   public static List<Netlist> extractNetlists(boolean includeSwitches,
-      boolean respectSelectedPositions, Project project,
+      boolean respectSelectedPositions, Set<String> gangedSwitchNames, Project project,
       List<ContinuityArea> continuityAreas) throws NetlistException {
     Map<Netlist, Netlist> result = new HashMap<Netlist, Netlist>();
     List<Node> nodes = new ArrayList<Node>();
@@ -111,6 +123,49 @@ public class NetlistBuilder {
     if (switches.isEmpty())
       switches.add(new TrivialSwitch());
 
+    Map<String, List<ISwitch>> namedSwitches = new LinkedHashMap<>();
+    for (ISwitch theSwitch : switches) {
+      if (!(theSwitch instanceof IDIYComponent<?>))
+        continue;
+      String name = ((IDIYComponent<?>) theSwitch).getName();
+      if (name != null && !name.isBlank() && gangedSwitchNames.contains(name))
+        namedSwitches.computeIfAbsent(name, key -> new ArrayList<>()).add(theSwitch);
+    }
+
+    Map<ISwitch, ISwitch> gangLeaders = new LinkedHashMap<>();
+    for (List<ISwitch> gang : namedSwitches.values()) {
+      ISwitch leader = gang.get(0);
+      if (gang.size() > 1 && gang.stream()
+          .allMatch(member -> member.getPositionCount() == leader.getPositionCount())) {
+        for (int j = 1; j < gang.size(); j++)
+          gangLeaders.put(gang.get(j), leader);
+      }
+    }
+    Map<ISwitch, Integer> selectedPositions = new HashMap<>();
+    if (respectSelectedPositions) {
+      for (ISwitch member : switches) {
+        Integer selected = member.getSelectedPosition();
+        if (selected == null)
+          continue;
+
+        String name = member instanceof IDIYComponent<?>
+            ? ((IDIYComponent<?>) member).getName()
+            : member.getClass().getSimpleName();
+
+        if (selected < 0 || selected >= member.getPositionCount())
+          throw new NetlistException("Invalid selected position for switch '" + name
+              + "'. Set Selected Position to None and try again.");
+
+        ISwitch leader = gangLeaders.getOrDefault(member, member);
+        Integer previous = selectedPositions.putIfAbsent(leader, selected);
+        if (previous != null && !previous.equals(selected))
+          throw new NetlistException("Switches named '" + name
+              + "' are ganged but have conflicting Selected Position values. "
+              + "Set them to the same position, or set all but one to None.");
+      }
+    }
+    switches.removeAll(gangLeaders.keySet());
+
     // Determine the allowed position range for each switch.
     int[] firstPositions = new int[switches.size()];
     int[] lastPositions = new int[switches.size()];
@@ -119,20 +174,7 @@ public class NetlistBuilder {
     // construct all possible combinations
     for (int j = 0; j < switches.size(); j++) {
       ISwitch theSwitch = switches.get(j);
-      Integer selected = respectSelectedPositions
-              ? theSwitch.getSelectedPosition()
-              : null;
-
-      if (selected != null
-              && (selected < 0 || selected >= theSwitch.getPositionCount())) {
-        String name = theSwitch instanceof IDIYComponent<?>
-                ? ((IDIYComponent<?>) theSwitch).getName()
-                : theSwitch.getClass().getSimpleName();
-
-        throw new NetlistException(
-                "Invalid selected position for switch '" + name
-                        + "'. Set Selected Position to None and try again.");
-      }
+      Integer selected = selectedPositions.get(theSwitch);
 
       firstPositions[j] = selected == null ? 0 : selected;
       lastPositions[j] = selected == null
@@ -175,6 +217,8 @@ public class NetlistBuilder {
         switchPositions.put(switches.get(j), positions[j]);
         posList.add(new Position(switches.get(j), positions[j]));
       }
+      gangLeaders.forEach((member, leader) ->
+          switchPositions.put(member, switchPositions.get(leader)));
       List<Connection> connections = getConnections(project, switchPositions);
 
       Netlist netlist =

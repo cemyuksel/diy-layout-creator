@@ -19,15 +19,27 @@
 package org.diylc.netlist;
 
 import java.util.List;
+import java.util.Map;
 
 public class NetlistSummaryHtmlReport {
 
     public static String generateHtml(List<Summary> summaries, String fontName) {
-        return generateHtml(summaries, fontName, List.of());
+        return generateHtml(summaries, fontName, List.of(), Map.of());
     }
 
     public static String generateHtml(List<Summary> summaries, String fontName,
                                       List<Position> fixedPositions) {
+        return generateHtml(summaries, fontName, fixedPositions, Map.of());
+    }
+
+    public static String generateHtml(List<Summary> summaries, String fontName,
+                                      Map<String, List<Integer>> switchPositionCounts) {
+        return generateHtml(summaries, fontName, List.of(), switchPositionCounts);
+    }
+
+    public static String generateHtml(List<Summary> summaries, String fontName,
+                                      List<Position> fixedPositions,
+                                      Map<String, List<Integer>> switchPositionCounts) {
         if (summaries == null || summaries.isEmpty()) {
             return "";
         }
@@ -57,6 +69,41 @@ public class NetlistSummaryHtmlReport {
                             .append("</li>"));
 
             sb.append("</ul><hr>");
+        }
+        StringBuilder ganged = new StringBuilder();
+        StringBuilder incompatible = new StringBuilder();
+        for (var entry : switchPositionCounts.entrySet()) {
+            List<Integer> counts = entry.getValue();
+            if (counts.size() < 2)
+                continue;
+
+            String name = entry.getKey().replace("&", "&amp;")
+                    .replace("<", "&lt;").replace(">", "&gt;");
+            if (counts.stream().distinct().count() == 1) {
+                ganged.append("<li>").append(name).append(": ")
+                        .append(counts.size()).append(" switches, ")
+                        .append(counts.get(0)).append(" positions</li>");
+            } else {
+                incompatible.append("<li>").append(name)
+                        .append(": position counts ").append(counts)
+                        .append("</li>");
+            }
+        }
+
+        if (incompatible.length() > 0) {
+            sb.append("<p><b>Warning: same-name switches have different numbers ")
+                    .append("of positions.</b> The switches listed below were not ")
+                    .append("ganged and were analyzed independently.</p><ul>")
+                    .append(incompatible).append("</ul><hr>");
+        }
+
+        if (ganged.length() > 0) {
+            sb.append("<p><b>Same-name switches are assumed to be parts of one switch.</b> ")
+                    .append("The groups listed below have matching position counts. ")
+                    .append("Their positions are synchronized by position number, ")
+                    .append("even if their position labels differ. Each group is ")
+                    .append("represented as a single switch in configuration descriptions.</p><ul>")
+                    .append(ganged).append("</ul><hr>");
         }
 
         for (Summary summary : summaries) {

@@ -22,6 +22,7 @@
 package org.diylc.common;
 
 import java.util.List;
+import java.util.Set;
 
 import org.diylc.netlist.INetlistParser;
 import org.diylc.netlist.Netlist;
@@ -51,6 +52,29 @@ public interface INetlistProcessor {
     if (respectSelectedPositions)
       throw new NetlistException("Selected-position filtering is not supported by this netlist processor.");
     return extractNetlists(includeSwitches);
+  }
+
+  /**
+   * Extracts netlists, synchronizing switches with the specified names.
+   */
+  default List<Netlist> extractNetlists(boolean includeSwitches,
+      Set<String> gangedSwitchNames) throws NetlistException {
+    if (!gangedSwitchNames.isEmpty())
+      throw new NetlistException("Switch ganging is not supported by this netlist processor.");
+    return extractNetlists(includeSwitches);
+  }
+
+  /**
+   * Extracts netlists with optional selected-position filtering and switch ganging.
+   */
+  default List<Netlist> extractNetlists(boolean includeSwitches,
+      boolean respectSelectedPositions, Set<String> gangedSwitchNames)
+      throws NetlistException {
+    if (gangedSwitchNames.isEmpty())
+      return extractNetlists(includeSwitches, respectSelectedPositions);
+    if (!respectSelectedPositions)
+      return extractNetlists(includeSwitches, gangedSwitchNames);
+    throw new NetlistException("Combined switch ganging and selected-position filtering is not supported by this netlist processor.");
   }
 
   /**

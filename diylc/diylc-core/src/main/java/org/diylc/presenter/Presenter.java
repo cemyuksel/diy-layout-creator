@@ -3200,10 +3200,23 @@ public class Presenter implements IPlugInPort {
   @Override
   public List<Netlist> extractNetlists(boolean includeSwitches,
       boolean respectSelectedPositions) throws NetlistException {
+    return extractNetlists(includeSwitches, respectSelectedPositions, Collections.emptySet());
+  }
+
+  @Override
+  public List<Netlist> extractNetlists(boolean includeSwitches,
+      Set<String> gangedSwitchNames) throws NetlistException {
+    return extractNetlists(includeSwitches, false, gangedSwitchNames);
+  }
+
+  @Override
+  public List<Netlist> extractNetlists(boolean includeSwitches,
+      boolean respectSelectedPositions, Set<String> gangedSwitchNames)
+      throws NetlistException {
     List<ContinuityArea> continuityAreas = drawingManager.getContinuityAreas();
 
     return NetlistBuilder.extractNetlists(includeSwitches, respectSelectedPositions,
-        currentProject, continuityAreas);
+        gangedSwitchNames, currentProject, continuityAreas);
   }
 
   @Override

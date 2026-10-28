@@ -25,6 +25,10 @@ import java.awt.Dimension;
 import java.awt.event.ActionEvent;
 import java.util.List;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.Map;
+import java.util.Set;
 import javax.swing.AbstractAction;
 
 import org.diylc.swingframework.TextDialog;
@@ -75,9 +79,31 @@ public class SummarizeNetlistAction extends AbstractAction {
 
     swingUI.executeBackgroundTask(new ITask<List<Summary>>() {
 
+      private final Map<String, List<Integer>> switchPositionCounts = new LinkedHashMap<>();
+
       @Override
       public List<Summary> doInBackground() throws Exception {
-        List<Netlist> netlists = plugInPort.extractNetlists(includeSwitches, respectSelectedPositions);
+        Set<String> gangedSwitchNames = new LinkedHashSet<>();
+        if (includeSwitches && summarizer instanceof IGuitarDiagramAnalyzer) {
+          for (var component : plugInPort.getCurrentProject().getComponents()) {
+            if (component instanceof ISwitch theSwitch) {
+              String name = component.getName();
+              if (name != null && !name.isBlank())
+                switchPositionCounts.computeIfAbsent(name, key -> new ArrayList<>())
+                    .add(theSwitch.getPositionCount());
+            }
+          }
+
+          switchPositionCounts.entrySet().removeIf(entry -> entry.getValue().size() < 2);
+          for (var entry : switchPositionCounts.entrySet()) {
+            if (entry.getValue().stream().distinct().count() == 1)
+              gangedSwitchNames.add(entry.getKey());
+          }
+        }
+
+        List<Netlist> netlists = plugInPort.extractNetlists(
+            includeSwitches, respectSelectedPositions, gangedSwitchNames);
+
         if (netlists == null || netlists.isEmpty()) {
           throw new Exception("The generated netlist is empty, nothing to show.");
         }
@@ -101,18 +127,30 @@ public class SummarizeNetlistAction extends AbstractAction {
         List<Position> fixedPositions = new ArrayList<>();
 
         if (respectSelectedPositions && !res.isEmpty()) {
+          Map<String, ISwitch> gangRepresentatives = new LinkedHashMap<>();
+          Map<ISwitch, Integer> selectedPositions = new LinkedHashMap<>();
+
           for (var component : res.get(0).getNetlist().getComponents()) {
             if (component instanceof ISwitch theSwitch) {
+              ISwitch representative = theSwitch;
+              String name = component.getName();
+              List<Integer> counts = switchPositionCounts.get(name);
+
+              if (counts != null && counts.stream().distinct().count() == 1)
+                representative = gangRepresentatives.computeIfAbsent(name, key -> theSwitch);
+
               Integer selected = theSwitch.getSelectedPosition();
-              if (selected != null) {
-                fixedPositions.add(new Position(theSwitch, selected));
-              }
+              if (selected != null)
+                selectedPositions.put(representative, selected);
             }
           }
+
+          selectedPositions.forEach((theSwitch, position) ->
+              fixedPositions.add(new Position(theSwitch, position)));
         }
 
         String html = NetlistSummaryHtmlReport.generateHtml(
-                res, summarizer.getFontName(), fixedPositions);
+            res, summarizer.getFontName(), fixedPositions, switchPositionCounts);
 
         new TextDialog(swingUI.getOwnerFrame().getRootPane(), html, summarizer.getName(),
             new Dimension(800, 600)).setVisible(true);
